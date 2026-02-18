@@ -15,6 +15,8 @@
 - A editpack output path is healthy.
 - B MP4 integration is implemented and no longer hard-failing on request validation.
 - Deep YouTube analysis is offloaded to a DigitalOcean worker service.
+- TikTok reference URLs are now supported in quick/deep analysis flows.
+- Optional approval workflow and voice studio have been added.
 
 ## Credentials / Env Setup
 
@@ -27,6 +29,7 @@ Configured in Vercel production:
 - `ADMIN_PASSWORD`
 - `WORKER_BASE_URL`
 - `WORKER_API_KEY`
+- `ELEVENLABS_API_KEY` (required for A voiceover mp3 outputs)
 
 Configured on DigitalOcean worker container:
 
@@ -87,6 +90,12 @@ This stores a style profile that future batches use for hooks, pacing, and visua
   - Public operational API endpoints.
 - `worker-service/*`
   - External deep-analysis service running on DigitalOcean.
+- `app/api/voice-profiles/*` + `app/voices/page.tsx`
+  - ElevenLabs voice profile management and test synthesis.
+- `app/api/settings/workflow/route.ts` + `app/settings/page.tsx`
+  - Global default workflow mode.
+- `app/api/jobs/[id]/approve-item/route.ts`
+  - Manual per-item approval/rejection endpoint.
 
 ## Known Risks / Watchpoints
 

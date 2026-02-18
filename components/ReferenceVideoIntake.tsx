@@ -52,9 +52,9 @@ export function ReferenceVideoIntake() {
 
   return (
     <div className="card">
-      <h2>Build From a YouTube Reference</h2>
+      <h2>Build From a YouTube or TikTok Reference</h2>
       <p>
-        Paste a YouTube link you want to emulate. The app will build a style profile,
+        Paste a YouTube or TikTok link you want to emulate. The app will build a style profile,
         then future batches use that profile with your own voice and assets.
       </p>
       <form
@@ -63,10 +63,10 @@ export function ReferenceVideoIntake() {
           void submit("quick");
         }}
       >
-        <label htmlFor="yt-url">YouTube URL</label>
+        <label htmlFor="yt-url">YouTube or TikTok URL</label>
         <input
           id="yt-url"
-          placeholder="https://www.youtube.com/watch?v=..."
+          placeholder="https://www.youtube.com/watch?v=... or https://www.tiktok.com/@..."
           value={url}
           onChange={(event) => setUrl(event.target.value)}
           required

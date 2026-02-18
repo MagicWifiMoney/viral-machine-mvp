@@ -20,9 +20,34 @@ export async function GET(
     aEditpack: data.outputs
       .filter((o) => o.type === "A_EDITPACK")
       .map((o) => o.blob_url),
+    aVoiceoverMp3: data.outputs
+      .filter((o) => o.type === "A_VOICEOVER_MP3")
+      .map((o) => o.blob_url),
     aMp4: data.outputs.filter((o) => o.type === "A_MP4").map((o) => o.blob_url),
     bMp4: data.outputs.filter((o) => o.type === "B_MP4").map((o) => o.blob_url)
   };
 
-  return NextResponse.json({ ok: true, job: data.job, groups });
+  const estimatedTotalUsd = data.items.reduce((sum, item) => {
+    const value = Number(item.estimated_cost_usd ?? 0);
+    return sum + (Number.isFinite(value) ? value : 0);
+  }, 0);
+
+  const outputs = data.outputs.map((output) => ({
+    ...output,
+    estimatedCostUsd:
+      typeof output.meta_json?.estimatedCostUsd === "number"
+        ? output.meta_json.estimatedCostUsd
+        : null,
+    qualityScore:
+      typeof output.meta_json?.qualityScore === "number" ? output.meta_json.qualityScore : null
+  }));
+
+  return NextResponse.json({
+    ok: true,
+    job: data.job,
+    groups,
+    outputs,
+    items: data.items,
+    costSummary: { estimatedTotalUsd: Math.round(estimatedTotalUsd * 1000) / 1000 }
+  });
 }

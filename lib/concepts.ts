@@ -4,6 +4,7 @@ type ReferenceContext = {
   sourceUrl?: string;
   sourceTitle?: string;
   sourceAuthor?: string;
+  platform?: string;
   styleProfile?: Record<string, unknown>;
 };
 

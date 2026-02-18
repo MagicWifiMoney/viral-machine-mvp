@@ -1,20 +1,9 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { createReferenceVideo, initDb } from "@/lib/db";
+import { detectReferencePlatform, isSupportedReferenceUrl } from "@/lib/referencePlatforms";
 
 export const dynamic = "force-dynamic";
-
-function isYouTubeUrl(raw: string): boolean {
-  try {
-    const url = new URL(raw);
-    return (
-      url.hostname.includes("youtube.com") ||
-      url.hostname.includes("youtu.be")
-    );
-  } catch {
-    return false;
-  }
-}
 
 function buildStyleProfile(title: string, author: string, notes: string) {
   return {
@@ -41,10 +30,11 @@ export async function POST(request: Request) {
 
   const url = String(body.url ?? "").trim();
   const notes = String(body.notes ?? "").trim();
+  const platform = detectReferencePlatform(url);
 
-  if (!url || !isYouTubeUrl(url)) {
+  if (!url || !isSupportedReferenceUrl(url)) {
     return NextResponse.json(
-      { ok: false, error: "Please provide a valid YouTube URL." },
+      { ok: false, error: "Please provide a valid YouTube or TikTok URL." },
       { status: 400 }
     );
   }
@@ -53,15 +43,23 @@ export async function POST(request: Request) {
   let authorName: string | null = null;
 
   try {
-    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
-    const response = await fetch(oembedUrl, { method: "GET" });
-    if (response.ok) {
-      const data = (await response.json()) as {
-        title?: string;
-        author_name?: string;
-      };
-      title = data.title ?? null;
-      authorName = data.author_name ?? null;
+    if (platform === "youtube") {
+      const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+      const response = await fetch(oembedUrl, { method: "GET" });
+      if (response.ok) {
+        const data = (await response.json()) as {
+          title?: string;
+          author_name?: string;
+        };
+        title = data.title ?? null;
+        authorName = data.author_name ?? null;
+      }
+    } else if (platform === "tiktok") {
+      const parsed = new URL(url);
+      title = "TikTok reference";
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      const userSegment = segments.find((segment) => segment.startsWith("@"));
+      authorName = userSegment ? userSegment.slice(1) : "TikTok creator";
     }
   } catch {
     // Non-fatal: we still store URL + notes.
@@ -77,6 +75,8 @@ export async function POST(request: Request) {
   await createReferenceVideo({
     id,
     sourceUrl: url,
+    platform,
+    extractor: platform === "youtube" ? "youtube_oembed_quick" : "tiktok_quick_parser",
     title,
     authorName,
     notes: notes || null,

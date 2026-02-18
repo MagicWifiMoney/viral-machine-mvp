@@ -4,6 +4,8 @@ A production-deployed MVP for batch-generating short-form content outputs:
 - `A mode`: editpack JSON outputs (always available)
 - `B mode`: MP4 outputs via OpenAI Video API
 - Optional `A mp4` render path (currently disabled by default)
+- Optional `A voiceover mp3` via ElevenLabs voice profiles
+- Optional approval workflow per batch (`autonomous` vs `approval`)
 
 Live app: `https://viral-machine-mvp.vercel.app`
 Worker host (DigitalOcean): `http://104.131.127.207:8788`
@@ -22,6 +24,8 @@ Worker host (DigitalOcean): `http://104.131.127.207:8788`
 - Home: `/`
 - Assets manager: `/assets`
 - Job viewer: `/jobs/[id]`
+- Voice studio: `/voices`
+- Settings: `/settings`
 - APIs:
   - `/api/init-db`
   - `/api/queue-batch`
@@ -190,6 +194,8 @@ Optional:
 
 - `OPENAI_VIDEO_MODEL` (default `sora-2`)
 - `RENDER_A_ENABLED` (default `false`)
+- `ELEVENLABS_API_KEY`
+- `ELEVENLABS_DEFAULT_MODEL` (default `eleven_multilingual_v2`)
 
 ---
 

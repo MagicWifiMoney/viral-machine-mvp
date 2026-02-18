@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import { put } from "@vercel/blob";
 import {
   claimJobItems,
+  getJobById,
+  getVoiceProfileById,
   insertOutput,
   refreshJobStatus,
   releaseLock,
@@ -11,6 +13,8 @@ import {
 } from "@/lib/db";
 import { createVideoTask, getVideoTask } from "@/lib/openaiVideo";
 import { isRenderAEnabled } from "@/lib/env";
+import { synthesizeVoiceover } from "@/lib/elevenlabs";
+import { estimateVoiceoverCostUsd } from "@/lib/costs";
 
 async function saveJsonOutput(key: string, data: Record<string, unknown>): Promise<string> {
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -45,6 +49,10 @@ export async function runMainWorker(): Promise<{
     for (const item of items) {
       try {
         if (item.mode === "A") {
+          const qualityScore =
+            typeof item.quality_score === "number" ? item.quality_score : Number(item.quality_score ?? 0);
+          const estimatedCostUsd = Number(item.estimated_cost_usd ?? 0);
+
           const outputUrl = await saveJsonOutput(
             `jobs/${item.job_id}/a-editpack-${item.id}.json`,
             item.concept_json
@@ -55,8 +63,44 @@ export async function runMainWorker(): Promise<{
             jobItemId: item.id,
             type: "A_EDITPACK",
             blobUrl: outputUrl,
-            metaJson: { source: "worker" }
+            metaJson: {
+              source: "worker",
+              qualityScore: Number.isFinite(qualityScore) ? qualityScore : null,
+              estimatedCostUsd: Number.isFinite(estimatedCostUsd) ? estimatedCostUsd : null
+            }
           });
+
+          const job = await getJobById(item.job_id);
+          if (job?.voice_profile_id) {
+            const profile = await getVoiceProfileById(job.voice_profile_id);
+            if (profile) {
+              const voiceText = String(
+                item.concept_json.hook ??
+                  "Here is your high-retention short-form script draft ready for your own footage."
+              );
+              const voiceover = await synthesizeVoiceover({
+                voiceId: profile.external_voice_id,
+                text: voiceText,
+                outputKey: `jobs/${item.job_id}/a-voiceover-${item.id}.mp3`
+              });
+
+              if (voiceover.ok) {
+                await insertOutput({
+                  id: crypto.randomUUID(),
+                  jobItemId: item.id,
+                  type: "A_VOICEOVER_MP3",
+                  blobUrl: voiceover.url,
+                  metaJson: {
+                    source: "elevenlabs",
+                    voiceProfileId: profile.id,
+                    estimatedCostUsd: estimateVoiceoverCostUsd(voiceText)
+                  }
+                });
+              } else {
+                errors.push(`Voiceover failed for ${item.id}: ${voiceover.error}`);
+              }
+            }
+          }
 
           await setJobItemStatus(item.id, "completed");
           await refreshJobStatus(item.job_id);
@@ -67,6 +111,9 @@ export async function runMainWorker(): Promise<{
         if (!item.remote_task_id) {
           const prompt = String(item.concept_json.hook ?? "Create a viral short-form business video");
           const created = await createVideoTask({ prompt, seconds: 10 });
+          const qualityScore =
+            typeof item.quality_score === "number" ? item.quality_score : Number(item.quality_score ?? 0);
+          const estimatedCostUsd = Number(item.estimated_cost_usd ?? 0);
 
           if (created.status === "failed") {
             await setJobItemStatus(item.id, "failed", created.error ?? "Video task creation failed");
@@ -81,7 +128,12 @@ export async function runMainWorker(): Promise<{
               jobItemId: item.id,
               type: "B_MP4",
               blobUrl: created.outputUrl,
-              metaJson: { source: "openai", immediate: true }
+              metaJson: {
+                source: "openai",
+                immediate: true,
+                qualityScore: Number.isFinite(qualityScore) ? qualityScore : null,
+                estimatedCostUsd: Number.isFinite(estimatedCostUsd) ? estimatedCostUsd : null
+              }
             });
             await setJobItemStatus(item.id, "completed");
           } else {
@@ -95,12 +147,20 @@ export async function runMainWorker(): Promise<{
 
         const polled = await getVideoTask(item.remote_task_id);
         if (polled.status === "completed" && polled.outputUrl) {
+          const qualityScore =
+            typeof item.quality_score === "number" ? item.quality_score : Number(item.quality_score ?? 0);
+          const estimatedCostUsd = Number(item.estimated_cost_usd ?? 0);
           await insertOutput({
             id: crypto.randomUUID(),
             jobItemId: item.id,
             type: "B_MP4",
             blobUrl: polled.outputUrl,
-            metaJson: { source: "openai", polled: true }
+            metaJson: {
+              source: "openai",
+              polled: true,
+              qualityScore: Number.isFinite(qualityScore) ? qualityScore : null,
+              estimatedCostUsd: Number.isFinite(estimatedCostUsd) ? estimatedCostUsd : null
+            }
           });
           await setJobItemStatus(item.id, "completed");
         } else if (polled.status === "failed") {

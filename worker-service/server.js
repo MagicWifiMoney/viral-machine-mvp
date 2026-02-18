@@ -34,15 +34,32 @@ async function run(binary, args, cwd) {
 
 async function fetchOEmbed(url) {
   try {
-    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
-    const response = await fetch(oembedUrl);
-    if (!response.ok) {
-      return { title: null, authorName: null };
+    if (url.includes("youtube.com") || url.includes("youtu.be")) {
+      const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+      const response = await fetch(oembedUrl);
+      if (!response.ok) {
+        return { title: null, authorName: null };
+      }
+      const data = await response.json();
+      return {
+        title: data.title ?? null,
+        authorName: data.author_name ?? null
+      };
     }
-    const data = await response.json();
+
+    if (url.includes("tiktok.com")) {
+      const parsed = new URL(url);
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      const userSegment = segments.find((segment) => segment.startsWith("@"));
+      return {
+        title: "TikTok reference",
+        authorName: userSegment ? userSegment.slice(1) : "TikTok creator"
+      };
+    }
+
     return {
-      title: data.title ?? null,
-      authorName: data.author_name ?? null
+      title: null,
+      authorName: null
     };
   } catch {
     return { title: null, authorName: null };
@@ -201,8 +218,8 @@ app.get('/health', (_req, res) => {
 app.post('/deep-analyze', requireAuth, async (req, res) => {
   try {
     const { url = '', notes = '' } = req.body || {};
-    if (!url || (!url.includes('youtube.com') && !url.includes('youtu.be'))) {
-      return res.status(400).json({ ok: false, error: 'Please provide a valid YouTube URL.' });
+    if (!url || (!url.includes('youtube.com') && !url.includes('youtu.be') && !url.includes('tiktok.com'))) {
+      return res.status(400).json({ ok: false, error: 'Please provide a valid YouTube or TikTok URL.' });
     }
 
     const result = await deepAnalyzeYouTube(String(url), String(notes || ''));

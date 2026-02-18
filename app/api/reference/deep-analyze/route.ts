@@ -2,18 +2,10 @@ import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { createReferenceVideo, initDb } from "@/lib/db";
 import { deepAnalyzeYouTube } from "@/lib/youtubeDeepAnalysis";
+import { detectReferencePlatform, isSupportedReferenceUrl } from "@/lib/referencePlatforms";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-function isYouTubeUrl(raw: string): boolean {
-  try {
-    const url = new URL(raw);
-    return url.hostname.includes("youtube.com") || url.hostname.includes("youtu.be");
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(request: Request) {
   await initDb();
@@ -25,10 +17,11 @@ export async function POST(request: Request) {
 
   const url = String(body.url ?? "").trim();
   const notes = String(body.notes ?? "").trim();
+  const platform = detectReferencePlatform(url);
 
-  if (!url || !isYouTubeUrl(url)) {
+  if (!url || !isSupportedReferenceUrl(url)) {
     return NextResponse.json(
-      { ok: false, error: "Please provide a valid YouTube URL." },
+      { ok: false, error: "Please provide a valid YouTube or TikTok URL." },
       { status: 400 }
     );
   }
@@ -45,6 +38,8 @@ export async function POST(request: Request) {
     await createReferenceVideo({
       id,
       sourceUrl: url,
+      platform,
+      extractor: "worker_deep_analysis",
       title: analyzed.title,
       authorName: analyzed.authorName,
       notes: notes || null,
