@@ -34,7 +34,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const analyzed = await deepAnalyzeYouTube(url, notes);
+    const workerBaseUrl = process.env.WORKER_BASE_URL?.trim();
+    const workerApiKey = process.env.WORKER_API_KEY?.trim();
+
+    const analyzed = workerBaseUrl
+      ? await runDeepAnalyzeViaWorker(workerBaseUrl, workerApiKey, url, notes)
+      : await deepAnalyzeYouTube(url, notes);
 
     const id = crypto.randomUUID();
     await createReferenceVideo({
@@ -73,4 +78,48 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+async function runDeepAnalyzeViaWorker(
+  workerBaseUrl: string,
+  workerApiKey: string | undefined,
+  url: string,
+  notes: string
+): Promise<{
+  title: string | null;
+  authorName: string | null;
+  styleProfile: Record<string, unknown>;
+  technical: Record<string, unknown>;
+}> {
+  const endpoint = `${workerBaseUrl.replace(/\/$/, "")}/deep-analyze`;
+  const headers: HeadersInit = { "Content-Type": "application/json" };
+  if (workerApiKey) {
+    headers.Authorization = `Bearer ${workerApiKey}`;
+  }
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ url, notes })
+  });
+
+  const data = (await response.json()) as {
+    ok?: boolean;
+    error?: string;
+    title?: string | null;
+    authorName?: string | null;
+    styleProfile?: Record<string, unknown>;
+    technical?: Record<string, unknown>;
+  };
+
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error ?? "Worker deep analysis failed");
+  }
+
+  return {
+    title: data.title ?? null,
+    authorName: data.authorName ?? null,
+    styleProfile: data.styleProfile ?? {},
+    technical: data.technical ?? {}
+  };
 }
