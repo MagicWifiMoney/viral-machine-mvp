@@ -14,6 +14,7 @@
 - Worker queue processing is healthy.
 - A editpack output path is healthy.
 - B MP4 integration is implemented and no longer hard-failing on request validation.
+- Deep YouTube analysis is offloaded to a DigitalOcean worker service.
 
 ## Credentials / Env Setup
 
@@ -24,6 +25,13 @@ Configured in Vercel production:
 - `OPENAI_API_KEY`
 - `NEXT_PUBLIC_SITE_URL`
 - `ADMIN_PASSWORD`
+- `WORKER_BASE_URL`
+- `WORKER_API_KEY`
+
+Configured on DigitalOcean worker container:
+
+- `OPENAI_API_KEY`
+- `WORKER_API_KEY`
 
 If rotating credentials:
 
@@ -58,6 +66,15 @@ Go to `/` and click `Generate 20 + Queue A10/B10`.
   - `A editpack` links
   - `B mp4` links (eventually, depending on OpenAI processing latency)
 
+### 6. Reference-Driven Generation (Recommended)
+
+1. On `/`, paste a YouTube URL.
+2. Click `Deep Analyze Video Style`.
+3. Wait for success message.
+4. Queue batch and run workers.
+
+This stores a style profile that future batches use for hooks, pacing, and visual structure.
+
 ## Code Areas to Know
 
 - `lib/openaiVideo.ts`
@@ -68,12 +85,16 @@ Go to `/` and click `Generate 20 + Queue A10/B10`.
   - Schema setup and status transitions.
 - `app/api/*`
   - Public operational API endpoints.
+- `worker-service/*`
+  - External deep-analysis service running on DigitalOcean.
 
 ## Known Risks / Watchpoints
 
 - OpenAI job completion latency can vary.
 - Cost control: worker polling frequency and batch volume.
 - Rendering on Vercel serverless should remain optional for heavy video workloads.
+- If worker IP changes, update `WORKER_BASE_URL` in Vercel and redeploy.
+- If worker auth fails, rotate and sync `WORKER_API_KEY` in both Vercel and worker container.
 
 ## Suggested Immediate Improvements
 

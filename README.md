@@ -6,6 +6,7 @@ A production-deployed MVP for batch-generating short-form content outputs:
 - Optional `A mp4` render path (currently disabled by default)
 
 Live app: `https://viral-machine-mvp.vercel.app`
+Worker host (DigitalOcean): `http://104.131.127.207:8788`
 
 ---
 
@@ -182,6 +183,8 @@ Required for production:
 - `OPENAI_API_KEY`
 - `NEXT_PUBLIC_SITE_URL`
 - `ADMIN_PASSWORD`
+- `WORKER_BASE_URL` (DigitalOcean worker base URL)
+- `WORKER_API_KEY` (shared secret for app -> worker calls)
 
 Optional:
 
@@ -207,6 +210,27 @@ Then:
    - `/api/worker`
    - `/api/render-worker`
 6. Review outputs at `/jobs/<id>`.
+
+### Non-Technical Operating Flow
+
+1. Open `/` and paste a YouTube link (optional, but recommended).
+2. Click `Deep Analyze Video Style` to save style context.
+3. Open `/assets` and upload the starter asset pack.
+4. Return to `/` and click `Generate 20 + Queue A10/B10`.
+5. On the same page, click `Run Both` if jobs stay queued.
+6. Open `/jobs/<id>` and watch for:
+   - `A editpack` JSON links
+   - `B mp4` links
+   - optional `A mp4` links when rendering is enabled
+
+### DigitalOcean Worker Notes
+
+- Vercel route `/api/reference/deep-analyze` forwards to the external worker when `WORKER_BASE_URL` is set.
+- Worker service lives in `worker-service/` and requires:
+  - `OPENAI_API_KEY`
+  - `WORKER_API_KEY`
+- Health check endpoint: `GET /health`
+- Main endpoint: `POST /deep-analyze`
 
 ---
 

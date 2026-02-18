@@ -95,7 +95,7 @@ export function ReferenceVideoIntake() {
         </div>
       </form>
       <small>
-        Deep mode inspects real frames and needs local tools (`yt-dlp` + `ffmpeg`) plus OpenAI key.
+        Deep mode inspects real frames through your DigitalOcean worker and may take 30-90 seconds.
       </small>
       <br />
       <small>{message}</small>

@@ -26,6 +26,7 @@ export default async function AssetsPage() {
 
       <div className="card">
         <h2>Upload Asset</h2>
+        <p>Use <strong>kind</strong> + <strong>category</strong> exactly so the generator can find your files.</p>
         <form action="/api/assets/upload" method="post" encType="multipart/form-data">
           <label htmlFor="kind">kind</label>
           <select id="kind" name="kind" required>
@@ -42,6 +43,17 @@ export default async function AssetsPage() {
 
           <button type="submit">Upload</button>
         </form>
+      </div>
+
+      <div className="card">
+        <h2>Recommended Starter Pack</h2>
+        <p>Upload at least one file for each:</p>
+        <p>- <strong>broll/aroll_facecam</strong> (vertical talking-head)</p>
+        <p>- <strong>broll/receipts_desk</strong> (desk/receipt clip)</p>
+        <p>- <strong>broll/laptop_dashboard_generic</strong> (laptop/business clip)</p>
+        <p>- <strong>broll/airport_lifestyle</strong> (lifestyle clip)</p>
+        <p>- <strong>proof/points_screenshot_generic</strong> (image screenshot)</p>
+        <p>- <strong>music/bed</strong> (background music mp3)</p>
       </div>
 
       <div className="card">

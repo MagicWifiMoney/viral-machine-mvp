@@ -33,14 +33,26 @@ export default async function HomePage() {
 
       <div className="card">
         <h2>How to Use (Quick Guide)</h2>
-        <p>1. Upload your media in the <a href="/assets">Assets page</a> first.</p>
-        <p>2. Click <strong>Generate 20 + Queue A10/B10</strong>.</p>
-        <p>3. If the job says <strong>queued</strong> or <strong>running</strong>, click <strong>Run Worker</strong> below.</p>
-        <p>4. Open your job page and refresh every 20–30 seconds.</p>
-        <p>5. Results:</p>
-        <p>- <strong>A editpack</strong> = JSON content plans</p>
-        <p>- <strong>B mp4</strong> = generated videos</p>
-        <p>- <strong>A mp4</strong> appears only if A rendering is enabled</p>
+        <p>1. Optional: paste a YouTube URL above and click <strong>Deep Analyze Video Style</strong>.</p>
+        <p>2. Upload your media in the <a href="/assets">Assets page</a>.</p>
+        <p>3. Click <strong>Generate 20 + Queue A10/B10</strong> on this page.</p>
+        <p>4. If status is <strong>queued</strong> or <strong>running</strong>, click <strong>Run Worker</strong> below (or <strong>Run Both</strong>).</p>
+        <p>5. Open your job page and refresh every 20-30 seconds.</p>
+        <p>6. Output types:</p>
+        <p>- <strong>A editpack</strong>: JSON shot list/script instructions</p>
+        <p>- <strong>B mp4</strong>: generated video output</p>
+        <p>- <strong>A mp4</strong>: only appears if A rendering is enabled</p>
+      </div>
+
+      <div className="card">
+        <h2>What To Upload</h2>
+        <p>Minimum set on <a href="/assets">/assets</a> so results are not empty:</p>
+        <p>- <strong>broll/aroll_facecam</strong>: vertical talking-head clip</p>
+        <p>- <strong>broll/receipts_desk</strong>: desk/receipts footage</p>
+        <p>- <strong>broll/laptop_dashboard_generic</strong>: laptop or dashboard footage</p>
+        <p>- <strong>broll/airport_lifestyle</strong>: lifestyle/travel footage</p>
+        <p>- <strong>proof/points_screenshot_generic</strong>: screenshot image</p>
+        <p>- <strong>music/bed</strong>: background MP3</p>
       </div>
 
       <div className="card">
