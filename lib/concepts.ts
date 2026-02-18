@@ -1,6 +1,17 @@
 import type { JobItemMode } from "@/types";
 
-export function generateConcept(index: number, mode: JobItemMode): Record<string, unknown> {
+type ReferenceContext = {
+  sourceUrl?: string;
+  sourceTitle?: string;
+  sourceAuthor?: string;
+  styleProfile?: Record<string, unknown>;
+};
+
+export function generateConcept(
+  index: number,
+  mode: JobItemMode,
+  reference?: ReferenceContext
+): Record<string, unknown> {
   const hooks = [
     "POV: your side hustle just outran your 9-5",
     "3 moves that instantly lift retention",
@@ -18,7 +29,8 @@ export function generateConcept(index: number, mode: JobItemMode): Record<string
       format: "editpack",
       structure: ["hook", "problem", "proof", "cta"],
       durationSeconds: 28,
-      overlays: ["subtitle", "stat-callout", "arrow-annotation"]
+      overlays: ["subtitle", "stat-callout", "arrow-annotation"],
+      inspiration: reference ?? null
     };
   }
 
@@ -26,9 +38,10 @@ export function generateConcept(index: number, mode: JobItemMode): Record<string
     hook,
     mode,
     format: "prompt_to_video",
-    style: "fast-cut UGC",
+    style: "fast-cut UGC inspired by reference",
     durationSeconds: 10,
     camera: "handheld vertical",
-    cta: "Comment \"BLUEPRINT\""
+    cta: "Comment \"BLUEPRINT\"",
+    inspiration: reference ?? null
   };
 }

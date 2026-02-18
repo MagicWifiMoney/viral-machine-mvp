@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
-import { createJob, createJobItem, initDb } from "@/lib/db";
+import { createJob, createJobItem, getLatestReferenceVideo, initDb } from "@/lib/db";
 import { generateConcept } from "@/lib/concepts";
 import { DEFAULT_A_COUNT, DEFAULT_B_COUNT } from "@/lib/constants";
 import { requireAdminOr401 } from "@/lib/auth";
@@ -39,6 +39,15 @@ export async function POST(request: Request) {
   }
 
   const jobId = crypto.randomUUID();
+  const latestReference = await getLatestReferenceVideo();
+  const referenceContext = latestReference
+    ? {
+        sourceUrl: latestReference.source_url,
+        sourceTitle: latestReference.title ?? undefined,
+        sourceAuthor: latestReference.author_name ?? undefined,
+        styleProfile: latestReference.style_json
+      }
+    : undefined;
 
   await createJob({
     id: jobId,
@@ -54,7 +63,7 @@ export async function POST(request: Request) {
       jobId,
       mode: "A",
       status: "queued",
-      conceptJson: generateConcept(i, "A")
+      conceptJson: generateConcept(i, "A", referenceContext)
     });
   }
 
@@ -64,7 +73,7 @@ export async function POST(request: Request) {
       jobId,
       mode: "B",
       status: "queued",
-      conceptJson: generateConcept(i, "B")
+      conceptJson: generateConcept(i, "B", referenceContext)
     });
   }
 

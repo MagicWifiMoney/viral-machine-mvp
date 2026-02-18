@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:deep": "./scripts/local-deep-analysis.sh",
+    "check:deep-tools": "./scripts/local-deep-analysis.sh --check",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

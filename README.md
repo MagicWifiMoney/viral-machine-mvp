@@ -152,6 +152,25 @@ Expected:
 {"ok":true}
 ```
 
+## Deep YouTube Analysis (Local Machine)
+
+Use this when you want real style breakdown from actual video frames (animation vs slideshow vs talking-head, pacing, etc.).
+
+```bash
+npm run dev:deep
+```
+
+What this does:
+- verifies `ffmpeg` and `yt-dlp` are installed (and attempts brew install if missing)
+- checks `.env.local` + `OPENAI_API_KEY`
+- starts the app in dev mode
+
+Tool check only:
+
+```bash
+npm run check:deep-tools
+```
+
 ---
 
 ## Environment Variables

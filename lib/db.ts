@@ -1,5 +1,5 @@
 import { sql } from "@vercel/postgres";
-import type { Asset, Job, JobItem, JobItemMode, JobItemStatus } from "@/types";
+import type { Asset, Job, JobItem, JobItemMode, JobItemStatus, ReferenceVideo } from "@/types";
 
 export async function initDb(): Promise<void> {
   await sql`
@@ -55,6 +55,18 @@ export async function initDb(): Promise<void> {
     CREATE TABLE IF NOT EXISTS worker_locks (
       key TEXT PRIMARY KEY,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS reference_videos (
+      id UUID PRIMARY KEY,
+      source_url TEXT NOT NULL,
+      title TEXT,
+      author_name TEXT,
+      notes TEXT,
+      style_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `;
 
@@ -217,4 +229,36 @@ export async function tryAcquireLock(key: string): Promise<boolean> {
 
 export async function releaseLock(key: string): Promise<void> {
   await sql`SELECT pg_advisory_unlock(hashtext(${key}));`;
+}
+
+export async function createReferenceVideo(input: {
+  id: string;
+  sourceUrl: string;
+  title?: string | null;
+  authorName?: string | null;
+  notes?: string | null;
+  styleJson?: Record<string, unknown>;
+}): Promise<void> {
+  await sql`
+    INSERT INTO reference_videos (id, source_url, title, author_name, notes, style_json)
+    VALUES (
+      ${input.id},
+      ${input.sourceUrl},
+      ${input.title ?? null},
+      ${input.authorName ?? null},
+      ${input.notes ?? null},
+      ${JSON.stringify(input.styleJson ?? {})}::jsonb
+    );
+  `;
+}
+
+export async function getLatestReferenceVideo(): Promise<ReferenceVideo | null> {
+  const result = await sql<ReferenceVideo>`
+    SELECT *
+    FROM reference_videos
+    ORDER BY created_at DESC
+    LIMIT 1;
+  `;
+
+  return result.rows[0] ?? null;
 }

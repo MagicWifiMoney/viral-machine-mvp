@@ -59,3 +59,13 @@ export interface Asset {
   active: boolean;
   created_at: string;
 }
+
+export interface ReferenceVideo {
+  id: string;
+  source_url: string;
+  title: string | null;
+  author_name: string | null;
+  notes: string | null;
+  style_json: Record<string, unknown>;
+  created_at: string;
+}
