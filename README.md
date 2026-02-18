@@ -1,32 +1,236 @@
 # Viral Machine MVP
 
-## Setup
+A production-deployed MVP for batch-generating short-form content outputs:
+- `A mode`: editpack JSON outputs (always available)
+- `B mode`: MP4 outputs via OpenAI Video API
+- Optional `A mp4` render path (currently disabled by default)
 
-1. Install dependencies:
+Live app: `https://viral-machine-mvp.vercel.app`
+
+---
+
+## What This App Does
+
+1. Queues a batch (`A10/B10` by default).
+2. Processes items with worker APIs and cron.
+3. Stores outputs and assets in Postgres + Vercel Blob.
+4. Shows job results at `/jobs/<id>`.
+
+### Core Surfaces
+
+- Home: `/`
+- Assets manager: `/assets`
+- Job viewer: `/jobs/[id]`
+- APIs:
+  - `/api/init-db`
+  - `/api/queue-batch`
+  - `/api/worker`
+  - `/api/render-worker`
+  - `/api/jobs/[id]`
+  - `/api/assets/upload`
+  - `/api/assets/required`
+
+---
+
+## Architecture (Visual)
+
+```mermaid
+flowchart LR
+  U[Admin User] --> H[/Home UI/]
+  U --> A[/Assets UI/]
+  H --> QB[/api/queue-batch]
+  QB --> DB[(Postgres)]
+
+  W1[/api/worker/] --> DB
+  W1 --> OV[lib/openaiVideo.ts]
+  OV --> OAI[(OpenAI Video API)]
+  W1 --> BL[(Vercel Blob)]
+
+  W2[/api/render-worker/] --> DB
+  W2 --> BL
+
+  J[/jobs/:id/] --> JAPI[/api/jobs/:id]
+  JAPI --> DB
+```
+
+### Batch Lifecycle
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant App as /api/queue-batch
+  participant DB as Postgres
+  participant Worker as /api/worker
+  participant OpenAI as OpenAI Video
+  participant Blob as Vercel Blob
+
+  User->>App: POST count=20 split A10/B10
+  App->>DB: create job + 20 job_items
+
+  loop worker runs
+    Worker->>DB: claim queued items
+    alt A item
+      Worker->>Blob: save editpack JSON
+      Worker->>DB: output A_EDITPACK + item completed
+    else B item
+      Worker->>OpenAI: create/get video task
+      OpenAI-->>Worker: status / content
+      Worker->>Blob: save B mp4 (when available)
+      Worker->>DB: output B_MP4 + item completed
+    end
+  end
+```
+
+### Data Model Snapshot
+
+```mermaid
+erDiagram
+  JOBS ||--o{ JOB_ITEMS : contains
+  JOB_ITEMS ||--o{ OUTPUTS : produces
+
+  JOBS {
+    uuid id PK
+    text status
+    int requested_count
+    int a_count
+    int b_count
+    timestamptz created_at
+    timestamptz updated_at
+  }
+
+  JOB_ITEMS {
+    uuid id PK
+    uuid job_id FK
+    text mode
+    text status
+    jsonb concept_json
+    text remote_task_id
+    text error
+    timestamptz created_at
+    timestamptz updated_at
+  }
+
+  OUTPUTS {
+    uuid id PK
+    uuid job_item_id FK
+    text type
+    text blob_url
+    jsonb meta_json
+    timestamptz created_at
+  }
+
+  ASSETS {
+    uuid id PK
+    text kind
+    text category
+    text blob_url
+    text mime
+    boolean active
+    timestamptz created_at
+  }
+```
+
+---
+
+## Quick Start (Local)
 
 ```bash
 npm install
-```
-
-2. Copy env file and fill values:
-
-```bash
 cp .env.example .env.local
-```
-
-3. Run locally:
-
-```bash
 npm run dev
 ```
 
-4. Initialize DB:
-- Open `http://localhost:3000/api/init-db`
+Initialize DB:
 
-## Deploy
+```bash
+curl http://localhost:3000/api/init-db
+```
 
-1. `vercel`
-2. `vercel deploy --prod`
-3. Open `https://YOUR-VERCEL-URL.vercel.app/api/init-db`
-4. Set `NEXT_PUBLIC_SITE_URL` in Vercel environment variables
-5. Redeploy
+Expected:
+
+```json
+{"ok":true}
+```
+
+---
+
+## Environment Variables
+
+Required for production:
+
+- `POSTGRES_URL`
+- `BLOB_READ_WRITE_TOKEN`
+- `OPENAI_API_KEY`
+- `NEXT_PUBLIC_SITE_URL`
+- `ADMIN_PASSWORD`
+
+Optional:
+
+- `OPENAI_VIDEO_MODEL` (default `sora-2`)
+- `RENDER_A_ENABLED` (default `false`)
+
+---
+
+## Deploy + Runbook
+
+```bash
+vercel
+vercel deploy --prod
+```
+
+Then:
+
+1. Open `/api/init-db` and verify `{"ok":true}`.
+2. Set env vars in Vercel (if not already set).
+3. Upload minimum assets at `/assets`.
+4. Queue a batch on `/`.
+5. Trigger workers:
+   - `/api/worker`
+   - `/api/render-worker`
+6. Review outputs at `/jobs/<id>`.
+
+---
+
+## Required Minimum Asset Categories
+
+- `broll/aroll_facecam`
+- `broll/receipts_desk`
+- `broll/laptop_dashboard_generic`
+- `broll/airport_lifestyle`
+- `proof/points_screenshot_generic`
+- `music/bed`
+
+---
+
+## Project Layout
+
+```text
+app/
+  api/
+  assets/
+  jobs/[id]/
+components/
+lib/
+  openaiVideo.ts
+  workers.ts
+  db.ts
+db/
+  schema.sql
+types/
+```
+
+---
+
+## Known Operational Notes
+
+- B-mode generation depends on async polling behavior from OpenAI Video jobs.
+- A-mode MP4 rendering is currently off unless `RENDER_A_ENABLED=true`.
+- Worker endpoints are safe to trigger manually if cron is delayed.
+
+---
+
+## Next Build Ideas
+
+- Trend ingestion + pattern extraction
+- OpenAI-generated concept strategy (instead of deterministic templates)
+- Dedicated rendering service outside Vercel for heavier A-MP4 jobs
