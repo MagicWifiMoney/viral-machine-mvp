@@ -4,6 +4,7 @@ import { createVideoTask, getVideoTask } from "@/lib/openaiVideo";
 import { createGeminiVideoTask, getGeminiVideoTask } from "@/lib/geminiVideo";
 
 type CreateResult = {
+  provider: "openai" | "gemini";
   taskId: string;
   status: "queued" | "processing" | "completed" | "failed";
   outputUrl?: string;
@@ -16,7 +17,15 @@ type PollResult = {
   error?: string;
 };
 
-function pickProvider(): "openai" | "gemini" {
+function pickProviderFromItem(item: JobItem): "openai" | "gemini" {
+  const requested = String(item.concept_json.videoProvider ?? "").toLowerCase();
+  if (requested === "gemini") {
+    return "gemini";
+  }
+  if (requested === "openai") {
+    return "openai";
+  }
+
   const configured = getVideoProvider();
   if (configured === "gemini") {
     return "gemini";
@@ -28,12 +37,13 @@ function pickProvider(): "openai" | "gemini" {
 }
 
 export async function createVideoTaskForItem(item: JobItem): Promise<CreateResult> {
-  const provider = pickProvider();
+  const provider = pickProviderFromItem(item);
   const prompt = String(item.concept_json.hook ?? "Create a viral short-form business video");
 
   if (provider === "gemini") {
     const created = await createGeminiVideoTask({ prompt, seconds: 8 });
     return {
+      provider,
       ...created,
       taskId: created.taskId.startsWith("operations/") ? `gemini:${created.taskId}` : `gemini:${created.taskId}`
     };
@@ -41,6 +51,7 @@ export async function createVideoTaskForItem(item: JobItem): Promise<CreateResul
 
   const created = await createVideoTask({ prompt, seconds: 10 });
   return {
+    provider,
     ...created,
     taskId: created.taskId.startsWith("openai:") ? created.taskId : `openai:${created.taskId}`
   };

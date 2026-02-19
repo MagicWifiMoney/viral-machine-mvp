@@ -128,7 +128,7 @@ export async function runMainWorker(): Promise<{
               type: "B_MP4",
               blobUrl: created.outputUrl,
               metaJson: {
-                source: "openai",
+                source: created.provider,
                 immediate: true,
                 qualityScore: Number.isFinite(qualityScore) ? qualityScore : null,
                 estimatedCostUsd: Number.isFinite(estimatedCostUsd) ? estimatedCostUsd : null
@@ -145,6 +145,7 @@ export async function runMainWorker(): Promise<{
         }
 
         const polled = await getVideoTaskForItem(item.remote_task_id);
+        const provider = item.remote_task_id.startsWith("gemini:") ? "gemini" : "openai";
         if (polled.status === "completed" && polled.outputUrl) {
           const qualityScore =
             typeof item.quality_score === "number" ? item.quality_score : Number(item.quality_score ?? 0);
@@ -155,7 +156,7 @@ export async function runMainWorker(): Promise<{
             type: "B_MP4",
             blobUrl: polled.outputUrl,
             metaJson: {
-              source: "openai",
+              source: provider,
               polled: true,
               qualityScore: Number.isFinite(qualityScore) ? qualityScore : null,
               estimatedCostUsd: Number.isFinite(estimatedCostUsd) ? estimatedCostUsd : null

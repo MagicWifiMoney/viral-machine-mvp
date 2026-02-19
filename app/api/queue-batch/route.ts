@@ -32,6 +32,7 @@ export async function POST(request: Request) {
   let bCount = DEFAULT_B_COUNT;
   let workflowMode: WorkflowMode | null = null;
   let voiceProfileId: string | null = null;
+  let videoProvider: "auto" | "openai" | "gemini" | null = null;
 
   if (contentType.includes("application/json")) {
     const body = (await request.json()) as {
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
       split?: { a?: number; b?: number };
       workflowMode?: WorkflowMode;
       voiceProfileId?: string;
+      videoProvider?: "auto" | "openai" | "gemini";
     };
 
     count = body.count ?? count;
@@ -49,6 +51,12 @@ export async function POST(request: Request) {
         ? body.workflowMode
         : null;
     voiceProfileId = body.voiceProfileId ? String(body.voiceProfileId) : null;
+    videoProvider =
+      body.videoProvider === "openai" ||
+      body.videoProvider === "gemini" ||
+      body.videoProvider === "auto"
+        ? body.videoProvider
+        : null;
   } else if (contentType.includes("application/x-www-form-urlencoded")) {
     const form = await request.formData();
     const rawMode = String(form.get("workflowMode") ?? "");
@@ -56,6 +64,10 @@ export async function POST(request: Request) {
       workflowMode = rawMode;
     }
     voiceProfileId = String(form.get("voiceProfileId") ?? "").trim() || null;
+    const rawProvider = String(form.get("videoProvider") ?? "").trim();
+    if (rawProvider === "openai" || rawProvider === "gemini" || rawProvider === "auto") {
+      videoProvider = rawProvider;
+    }
   }
 
   if (aCount + bCount !== count) {
@@ -69,6 +81,7 @@ export async function POST(request: Request) {
   const latestReference = await getLatestReferenceVideo();
   const defaultWorkflowMode = await getWorkflowDefault();
   const selectedWorkflowMode = workflowMode ?? defaultWorkflowMode;
+  const selectedVideoProvider = videoProvider ?? "auto";
 
   const selectedVoiceProfile = voiceProfileId
     ? await getVoiceProfileById(voiceProfileId)
@@ -94,12 +107,16 @@ export async function POST(request: Request) {
     voice_profile_id: selectedVoiceProfile?.id ?? null,
     settings_json: {
       workflowMode: selectedWorkflowMode,
-      voiceProfileId: selectedVoiceProfile?.id ?? null
+      voiceProfileId: selectedVoiceProfile?.id ?? null,
+      videoProvider: selectedVideoProvider
     }
   });
 
   for (let i = 0; i < aCount; i += 1) {
-    const concept = generateConcept(i, "A", referenceContext);
+    const concept = {
+      ...generateConcept(i, "A", referenceContext),
+      videoProvider: selectedVideoProvider
+    };
     const quality = scoreConcept(concept);
     await createJobItem({
       id: crypto.randomUUID(),
@@ -115,7 +132,10 @@ export async function POST(request: Request) {
   }
 
   for (let i = 0; i < bCount; i += 1) {
-    const concept = generateConcept(i, "B", referenceContext);
+    const concept = {
+      ...generateConcept(i, "B", referenceContext),
+      videoProvider: selectedVideoProvider
+    };
     const quality = scoreConcept(concept);
     await createJobItem({
       id: crypto.randomUUID(),

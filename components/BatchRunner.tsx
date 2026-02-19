@@ -11,6 +11,7 @@ type VoiceProfile = {
 
 export function BatchRunner() {
   const [workflowMode, setWorkflowMode] = useState<"autonomous" | "approval">("autonomous");
+  const [videoProvider, setVideoProvider] = useState<"auto" | "openai" | "gemini">("auto");
   const [voiceProfileId, setVoiceProfileId] = useState("");
   const [profiles, setProfiles] = useState<VoiceProfile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,6 +62,7 @@ export function BatchRunner() {
           count: 20,
           split: { a: 10, b: 10 },
           workflowMode,
+          videoProvider,
           voiceProfileId: voiceProfileId || undefined
         })
       });
@@ -108,6 +110,19 @@ export function BatchRunner() {
             {profile.name} {profile.is_default ? "(default)" : ""}
           </option>
         ))}
+      </select>
+
+      <label htmlFor="video-provider">B video provider</label>
+      <select
+        id="video-provider"
+        value={videoProvider}
+        onChange={(event) =>
+          setVideoProvider(event.target.value as "auto" | "openai" | "gemini")
+        }
+      >
+        <option value="auto">Auto (use env default/fallback)</option>
+        <option value="gemini">Gemini Veo</option>
+        <option value="openai">OpenAI Sora</option>
       </select>
 
       <button type="button" onClick={submit} disabled={loading}>
