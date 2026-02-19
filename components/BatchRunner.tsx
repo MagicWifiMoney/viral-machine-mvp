@@ -12,6 +12,8 @@ type VoiceProfile = {
 export function BatchRunner() {
   const [workflowMode, setWorkflowMode] = useState<"autonomous" | "approval">("autonomous");
   const [videoProvider, setVideoProvider] = useState<"auto" | "openai" | "gemini">("auto");
+  const [variantCount, setVariantCount] = useState(3);
+  const [costPreset, setCostPreset] = useState<"cheap" | "balanced" | "max_quality">("balanced");
   const [voiceProfileId, setVoiceProfileId] = useState("");
   const [profiles, setProfiles] = useState<VoiceProfile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -63,6 +65,10 @@ export function BatchRunner() {
           split: { a: 10, b: 10 },
           workflowMode,
           videoProvider,
+          variantCount,
+          costPreset,
+          useTrendContext: true,
+          useBrandBrain: true,
           voiceProfileId: voiceProfileId || undefined
         })
       });
@@ -123,6 +129,30 @@ export function BatchRunner() {
         <option value="auto">Auto (use env default/fallback)</option>
         <option value="gemini">Gemini Veo</option>
         <option value="openai">OpenAI Sora</option>
+      </select>
+
+      <label htmlFor="variant-count">Variants per idea</label>
+      <select
+        id="variant-count"
+        value={String(variantCount)}
+        onChange={(event) => setVariantCount(Number(event.target.value))}
+      >
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+      </select>
+
+      <label htmlFor="cost-preset">Cost preset</label>
+      <select
+        id="cost-preset"
+        value={costPreset}
+        onChange={(event) =>
+          setCostPreset(event.target.value as "cheap" | "balanced" | "max_quality")
+        }
+      >
+        <option value="cheap">Cheap</option>
+        <option value="balanced">Balanced</option>
+        <option value="max_quality">Max Quality</option>
       </select>
 
       <button type="button" onClick={submit} disabled={loading}>

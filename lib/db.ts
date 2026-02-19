@@ -2,11 +2,16 @@ import { sql } from "@vercel/postgres";
 import type {
   ApprovalStatus,
   Asset,
+  BrandBrain,
   Job,
   JobItem,
   JobItemMode,
   JobItemStatus,
+  OutputRating,
+  PublishQueueItem,
+  RatingValue,
   ReferenceVideo,
+  TrendPattern,
   VoiceProfile,
   WorkflowMode
 } from "@/types";
@@ -111,6 +116,54 @@ export async function initDb(): Promise<void> {
     );
   `;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS trend_patterns (
+      id UUID PRIMARY KEY,
+      source TEXT NOT NULL,
+      query TEXT NOT NULL,
+      title TEXT NOT NULL,
+      pattern_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+      score NUMERIC NOT NULL DEFAULT 0,
+      captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS brand_brain (
+      id UUID PRIMARY KEY,
+      claims_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      default_cta TEXT,
+      tone TEXT,
+      banned_words_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS output_ratings (
+      id UUID PRIMARY KEY,
+      output_id UUID NOT NULL REFERENCES outputs(id) ON DELETE CASCADE,
+      rating TEXT NOT NULL,
+      note TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS publish_queue (
+      id UUID PRIMARY KEY,
+      output_id UUID NOT NULL REFERENCES outputs(id) ON DELETE CASCADE,
+      channel TEXT NOT NULL,
+      scheduled_for TIMESTAMPTZ NOT NULL,
+      external_post_id TEXT,
+      status TEXT NOT NULL,
+      payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+      error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
   await sql`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS workflow_mode TEXT NOT NULL DEFAULT 'autonomous';`;
   await sql`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS voice_profile_id UUID;`;
   await sql`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS settings_json JSONB NOT NULL DEFAULT '{}'::jsonb;`;
@@ -126,6 +179,9 @@ export async function initDb(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_job_items_status ON job_items(status);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_assets_kind_category ON assets(kind, category);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_voice_profiles_default ON voice_profiles(is_default);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_trend_patterns_captured ON trend_patterns(captured_at DESC);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_output_ratings_output ON output_ratings(output_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_publish_queue_output ON publish_queue(output_id);`;
 }
 
 export async function createJob(
@@ -245,10 +301,33 @@ export async function insertOutput(args: {
   `;
 }
 
+export async function getOutputById(id: string): Promise<{
+  id: string;
+  job_item_id: string;
+  type: string;
+  blob_url: string;
+  meta_json: Record<string, unknown>;
+} | null> {
+  const result = await sql<{
+    id: string;
+    job_item_id: string;
+    type: string;
+    blob_url: string;
+    meta_json: Record<string, unknown>;
+  }>`
+    SELECT *
+    FROM outputs
+    WHERE id = ${id}
+    LIMIT 1;
+  `;
+  return result.rows[0] ?? null;
+}
+
 export async function getJobWithDetails(jobId: string): Promise<{
   job: Job | null;
   items: JobItem[];
   outputs: Array<{
+    id: string;
     job_item_id: string;
     type: string;
     blob_url: string;
@@ -258,8 +337,8 @@ export async function getJobWithDetails(jobId: string): Promise<{
   const [jobResult, itemResult, outputResult] = await Promise.all([
     sql<Job>`SELECT * FROM jobs WHERE id = ${jobId} LIMIT 1;`,
     sql<JobItem>`SELECT * FROM job_items WHERE job_id = ${jobId} ORDER BY created_at ASC;`,
-    sql<{ job_item_id: string; type: string; blob_url: string; meta_json: Record<string, unknown> }>`
-      SELECT o.job_item_id, o.type, o.blob_url, o.meta_json
+    sql<{ id: string; job_item_id: string; type: string; blob_url: string; meta_json: Record<string, unknown> }>`
+      SELECT o.id, o.job_item_id, o.type, o.blob_url, o.meta_json
       FROM outputs o
       INNER JOIN job_items ji ON ji.id = o.job_item_id
       WHERE ji.job_id = ${jobId}
@@ -482,4 +561,185 @@ export async function setAppSetting(key: string, value: Record<string, unknown>)
     ON CONFLICT (key)
     DO UPDATE SET value_json = EXCLUDED.value_json, updated_at = NOW();
   `;
+}
+
+export async function upsertBrandBrain(input: {
+  claims: string[];
+  defaultCta?: string | null;
+  tone?: string | null;
+  bannedWords: string[];
+}): Promise<void> {
+  await sql`
+    INSERT INTO brand_brain (id, claims_json, default_cta, tone, banned_words_json, updated_at)
+    VALUES (
+      '00000000-0000-0000-0000-000000000001',
+      ${JSON.stringify(input.claims)}::jsonb,
+      ${input.defaultCta ?? null},
+      ${input.tone ?? null},
+      ${JSON.stringify(input.bannedWords)}::jsonb,
+      NOW()
+    )
+    ON CONFLICT (id)
+    DO UPDATE SET
+      claims_json = EXCLUDED.claims_json,
+      default_cta = EXCLUDED.default_cta,
+      tone = EXCLUDED.tone,
+      banned_words_json = EXCLUDED.banned_words_json,
+      updated_at = NOW();
+  `;
+}
+
+export async function getBrandBrain(): Promise<BrandBrain | null> {
+  const result = await sql<BrandBrain>`
+    SELECT *
+    FROM brand_brain
+    WHERE id = '00000000-0000-0000-0000-000000000001'
+    LIMIT 1;
+  `;
+  return result.rows[0] ?? null;
+}
+
+export async function insertTrendPattern(input: {
+  id: string;
+  source: string;
+  query: string;
+  title: string;
+  patternJson: Record<string, unknown>;
+  score: number;
+}): Promise<void> {
+  await sql`
+    INSERT INTO trend_patterns (id, source, query, title, pattern_json, score)
+    VALUES (
+      ${input.id},
+      ${input.source},
+      ${input.query},
+      ${input.title},
+      ${JSON.stringify(input.patternJson)}::jsonb,
+      ${input.score}
+    );
+  `;
+}
+
+export async function listLatestTrends(limit = 20): Promise<TrendPattern[]> {
+  const result = await sql<TrendPattern>`
+    SELECT *
+    FROM trend_patterns
+    ORDER BY captured_at DESC
+    LIMIT ${limit};
+  `;
+  return result.rows;
+}
+
+export async function insertOutputRating(input: {
+  id: string;
+  outputId: string;
+  rating: RatingValue;
+  note?: string | null;
+}): Promise<void> {
+  await sql`
+    INSERT INTO output_ratings (id, output_id, rating, note)
+    VALUES (${input.id}, ${input.outputId}, ${input.rating}, ${input.note ?? null});
+  `;
+}
+
+export async function listRatingsByJob(jobId: string): Promise<OutputRating[]> {
+  const result = await sql<OutputRating>`
+    SELECT r.*
+    FROM output_ratings r
+    INNER JOIN outputs o ON o.id = r.output_id
+    INNER JOIN job_items ji ON ji.id = o.job_item_id
+    WHERE ji.job_id = ${jobId}
+    ORDER BY r.created_at DESC;
+  `;
+  return result.rows;
+}
+
+export async function getLearningSignals(): Promise<{
+  winnerCount: number;
+  loserCount: number;
+}> {
+  const result = await sql<{ winner_count: number; loser_count: number }>`
+    SELECT
+      SUM(CASE WHEN rating = 'win' THEN 1 ELSE 0 END)::int AS winner_count,
+      SUM(CASE WHEN rating = 'loss' THEN 1 ELSE 0 END)::int AS loser_count
+    FROM output_ratings;
+  `;
+  return {
+    winnerCount: result.rows[0]?.winner_count ?? 0,
+    loserCount: result.rows[0]?.loser_count ?? 0
+  };
+}
+
+export async function createPublishQueueItem(input: {
+  id: string;
+  outputId: string;
+  channel: string;
+  scheduledFor: string;
+  status: string;
+  externalPostId?: string | null;
+  payloadJson?: Record<string, unknown>;
+  error?: string | null;
+}): Promise<void> {
+  await sql`
+    INSERT INTO publish_queue (
+      id,
+      output_id,
+      channel,
+      scheduled_for,
+      status,
+      external_post_id,
+      payload_json,
+      error,
+      updated_at
+    )
+    VALUES (
+      ${input.id},
+      ${input.outputId},
+      ${input.channel},
+      ${input.scheduledFor}::timestamptz,
+      ${input.status},
+      ${input.externalPostId ?? null},
+      ${JSON.stringify(input.payloadJson ?? {})}::jsonb,
+      ${input.error ?? null},
+      NOW()
+    );
+  `;
+}
+
+export async function updatePublishQueueStatus(input: {
+  id: string;
+  status: string;
+  externalPostId?: string | null;
+  error?: string | null;
+}): Promise<void> {
+  await sql`
+    UPDATE publish_queue
+    SET status = ${input.status},
+        external_post_id = COALESCE(${input.externalPostId ?? null}, external_post_id),
+        error = ${input.error ?? null},
+        updated_at = NOW()
+    WHERE id = ${input.id};
+  `;
+}
+
+export async function listPublishQueueByJob(jobId: string): Promise<PublishQueueItem[]> {
+  const result = await sql<PublishQueueItem>`
+    SELECT pq.*
+    FROM publish_queue pq
+    INNER JOIN outputs o ON o.id = pq.output_id
+    INNER JOIN job_items ji ON ji.id = o.job_item_id
+    WHERE ji.job_id = ${jobId}
+    ORDER BY pq.created_at DESC;
+  `;
+  return result.rows;
+}
+
+export async function getPublishQueueById(id: string): Promise<PublishQueueItem | null> {
+  const result = await sql<PublishQueueItem>`
+    SELECT *
+    FROM publish_queue
+    WHERE id = ${id}
+    LIMIT 1;
+  `;
+  return result.rows[0] ?? null;
 }

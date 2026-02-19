@@ -20,6 +20,10 @@ export type JobItemStatus =
 export type ApprovalStatus = "not_required" | "pending" | "approved" | "rejected";
 
 export type OutputType = "A_EDITPACK" | "A_MP4" | "B_MP4" | "A_VOICEOVER_MP3";
+export type CostPreset = "cheap" | "balanced" | "max_quality";
+export type TrendSource = "youtube_shorts";
+export type RatingValue = "win" | "neutral" | "loss";
+export type PublishChannel = "tiktok" | "instagram_reels";
 
 export type AssetKind = "broll" | "proof" | "music";
 
@@ -91,6 +95,46 @@ export interface VoiceProfile {
   external_voice_id: string;
   is_default: boolean;
   settings_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrendPattern {
+  id: string;
+  source: TrendSource;
+  query: string;
+  title: string;
+  pattern_json: Record<string, unknown>;
+  score: number;
+  captured_at: string;
+}
+
+export interface BrandBrain {
+  id: string;
+  claims_json: string[];
+  default_cta: string | null;
+  tone: string | null;
+  banned_words_json: string[];
+  updated_at: string;
+}
+
+export interface OutputRating {
+  id: string;
+  output_id: string;
+  rating: RatingValue;
+  note: string | null;
+  created_at: string;
+}
+
+export interface PublishQueueItem {
+  id: string;
+  output_id: string;
+  channel: PublishChannel;
+  scheduled_for: string;
+  external_post_id: string | null;
+  status: string;
+  payload_json: Record<string, unknown>;
+  error: string | null;
   created_at: string;
   updated_at: string;
 }

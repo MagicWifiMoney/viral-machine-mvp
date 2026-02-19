@@ -76,6 +76,49 @@ CREATE TABLE IF NOT EXISTS app_settings (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS trend_patterns (
+  id UUID PRIMARY KEY,
+  source TEXT NOT NULL,
+  query TEXT NOT NULL,
+  title TEXT NOT NULL,
+  pattern_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  score NUMERIC NOT NULL DEFAULT 0,
+  captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS brand_brain (
+  id UUID PRIMARY KEY,
+  claims_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+  default_cta TEXT,
+  tone TEXT,
+  banned_words_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS output_ratings (
+  id UUID PRIMARY KEY,
+  output_id UUID NOT NULL REFERENCES outputs(id) ON DELETE CASCADE,
+  rating TEXT NOT NULL,
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS publish_queue (
+  id UUID PRIMARY KEY,
+  output_id UUID NOT NULL REFERENCES outputs(id) ON DELETE CASCADE,
+  channel TEXT NOT NULL,
+  scheduled_for TIMESTAMPTZ NOT NULL,
+  external_post_id TEXT,
+  status TEXT NOT NULL,
+  payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_job_items_job_id ON job_items(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_items_status ON job_items(status);
 CREATE INDEX IF NOT EXISTS idx_assets_kind_category ON assets(kind, category);
+CREATE INDEX IF NOT EXISTS idx_trend_patterns_captured ON trend_patterns(captured_at DESC);
+CREATE INDEX IF NOT EXISTS idx_output_ratings_output ON output_ratings(output_id);
+CREATE INDEX IF NOT EXISTS idx_publish_queue_output ON publish_queue(output_id);

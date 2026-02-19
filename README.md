@@ -26,6 +26,7 @@ Worker host (DigitalOcean): `http://104.131.127.207:8788`
 - Job viewer: `/jobs/[id]`
 - Voice studio: `/voices`
 - Settings: `/settings`
+- Growth lab: `/growth-lab`
 - APIs:
   - `/api/init-db`
   - `/api/queue-batch`
@@ -199,6 +200,20 @@ Optional:
 - `RENDER_A_ENABLED` (default `false`)
 - `ELEVENLABS_API_KEY`
 - `ELEVENLABS_DEFAULT_MODEL` (default `eleven_multilingual_v2`)
+- `TREND_INGEST_YOUTUBE_API_KEY` (for real YouTube Shorts trend ingest)
+- `POST_BRIDGE_API_KEY` (for scheduling posts)
+- `POST_BRIDGE_BASE_URL` (default `https://api.post-bridge.com`)
+- `POST_BRIDGE_WORKSPACE_ID` (optional, depends on account)
+
+## New Growth Features
+
+- Trend miner (YouTube Shorts): `/api/trends/ingest`, `/api/trends/latest`
+- Brand brain profile: `/api/brand-brain`
+- Multi-variant concepts in queue (`variantCount`, default 3)
+- Thumbnail/title lab candidates included in each concept
+- In-app output rating loop: `/api/ratings`
+- Cost presets with hard caps: `/api/cost-presets`
+- Post Bridge manual scheduling: `/api/publish/schedule`, `/api/publish/status/[id]`
 
 ---
 

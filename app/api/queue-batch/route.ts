@@ -3,8 +3,12 @@ import { NextResponse } from "next/server";
 import {
   createJob,
   createJobItem,
+  getAppSetting,
+  getBrandBrain,
   getDefaultVoiceProfile,
+  getLearningSignals,
   getLatestReferenceVideo,
+  listLatestTrends,
   getVoiceProfileById,
   initDb
 } from "@/lib/db";
@@ -14,7 +18,12 @@ import { requireAdminOr401 } from "@/lib/auth";
 import { scoreConcept } from "@/lib/quality";
 import { estimateItemCostUsd } from "@/lib/costs";
 import { getWorkflowDefault } from "@/lib/settings";
-import type { WorkflowMode } from "@/types";
+import type { CostPreset, WorkflowMode } from "@/types";
+import { getCostPresetConfig } from "@/lib/costPresets";
+import {
+  generateThumbnailPromptCandidates,
+  generateTitleCandidates
+} from "@/lib/thumbnailLab";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +42,11 @@ export async function POST(request: Request) {
   let workflowMode: WorkflowMode | null = null;
   let voiceProfileId: string | null = null;
   let videoProvider: "auto" | "openai" | "gemini" | null = null;
+  let variantCount = 3;
+  let costPreset: CostPreset = "balanced";
+  let hasCostPresetInput = false;
+  let useTrendContext = true;
+  let useBrandBrain = true;
 
   if (contentType.includes("application/json")) {
     const body = (await request.json()) as {
@@ -41,6 +55,10 @@ export async function POST(request: Request) {
       workflowMode?: WorkflowMode;
       voiceProfileId?: string;
       videoProvider?: "auto" | "openai" | "gemini";
+      variantCount?: number;
+      costPreset?: CostPreset;
+      useTrendContext?: boolean;
+      useBrandBrain?: boolean;
     };
 
     count = body.count ?? count;
@@ -57,6 +75,14 @@ export async function POST(request: Request) {
       body.videoProvider === "auto"
         ? body.videoProvider
         : null;
+    variantCount = Number.isFinite(body.variantCount) ? Math.max(1, Math.min(6, Number(body.variantCount))) : 3;
+    costPreset =
+      body.costPreset === "cheap" || body.costPreset === "max_quality" || body.costPreset === "balanced"
+        ? body.costPreset
+        : "balanced";
+    hasCostPresetInput = Boolean(body.costPreset);
+    useTrendContext = body.useTrendContext ?? true;
+    useBrandBrain = body.useBrandBrain ?? true;
   } else if (contentType.includes("application/x-www-form-urlencoded")) {
     const form = await request.formData();
     const rawMode = String(form.get("workflowMode") ?? "");
@@ -68,6 +94,17 @@ export async function POST(request: Request) {
     if (rawProvider === "openai" || rawProvider === "gemini" || rawProvider === "auto") {
       videoProvider = rawProvider;
     }
+    const rawVariants = Number(form.get("variantCount") ?? "3");
+    if (Number.isFinite(rawVariants)) {
+      variantCount = Math.max(1, Math.min(6, rawVariants));
+    }
+    const rawPreset = String(form.get("costPreset") ?? "balanced");
+    if (rawPreset === "cheap" || rawPreset === "max_quality" || rawPreset === "balanced") {
+      costPreset = rawPreset;
+      hasCostPresetInput = true;
+    }
+    useTrendContext = String(form.get("useTrendContext") ?? "true") !== "false";
+    useBrandBrain = String(form.get("useBrandBrain") ?? "true") !== "false";
   }
 
   if (aCount + bCount !== count) {
@@ -79,9 +116,17 @@ export async function POST(request: Request) {
 
   const jobId = crypto.randomUUID();
   const latestReference = await getLatestReferenceVideo();
+  const costPresetSetting = await getAppSetting<{ defaultPreset?: CostPreset }>("cost_presets");
+  const trend = useTrendContext ? (await listLatestTrends(1))[0] ?? null : null;
+  const brandBrain = useBrandBrain ? await getBrandBrain() : null;
+  const learning = await getLearningSignals();
   const defaultWorkflowMode = await getWorkflowDefault();
   const selectedWorkflowMode = workflowMode ?? defaultWorkflowMode;
-  const selectedVideoProvider = videoProvider ?? "auto";
+  const selectedCostPreset = hasCostPresetInput
+    ? costPreset
+    : (costPresetSetting?.defaultPreset ?? costPreset);
+  const presetConfig = getCostPresetConfig(selectedCostPreset);
+  const selectedVideoProvider = videoProvider ?? presetConfig.defaultProvider;
 
   const selectedVoiceProfile = voiceProfileId
     ? await getVoiceProfileById(voiceProfileId)
@@ -108,47 +153,106 @@ export async function POST(request: Request) {
     settings_json: {
       workflowMode: selectedWorkflowMode,
       voiceProfileId: selectedVoiceProfile?.id ?? null,
-      videoProvider: selectedVideoProvider
+      videoProvider: selectedVideoProvider,
+      variantCount,
+      costPreset: selectedCostPreset,
+      trendSnapshotTitle: trend?.title ?? null
     }
   });
 
-  for (let i = 0; i < aCount; i += 1) {
-    const concept = {
-      ...generateConcept(i, "A", referenceContext),
-      videoProvider: selectedVideoProvider
-    };
-    const quality = scoreConcept(concept);
-    await createJobItem({
-      id: crypto.randomUUID(),
-      jobId,
-      mode: "A",
-      status: selectedWorkflowMode === "approval" ? "awaiting_approval" : "queued",
-      conceptJson: concept,
-      approvalStatus: selectedWorkflowMode === "approval" ? "pending" : "not_required",
-      qualityScore: quality.total,
-      qualityJson: quality,
-      estimatedCostUsd: estimateItemCostUsd("A", concept)
-    });
+  let estimatedBatchTotal = 0;
+
+  async function enqueueModeItems(mode: "A" | "B", baseCount: number) {
+    for (let i = 0; i < baseCount; i += 1) {
+      const parentConceptId = crypto.randomUUID();
+      for (let variantIndex = 0; variantIndex < variantCount; variantIndex += 1) {
+        const generated = generateConcept(i, mode, referenceContext, {
+          variantIndex,
+          variantCount,
+          trend: trend
+            ? {
+                title: trend.title,
+                hookStyle: String(trend.pattern_json.hookStyle ?? "")
+              }
+            : null,
+          brand: brandBrain
+            ? {
+                claims: brandBrain.claims_json,
+                defaultCta: brandBrain.default_cta,
+                tone: brandBrain.tone,
+                bannedWords: brandBrain.banned_words_json
+              }
+            : undefined,
+          learning: {
+            winnerCount: learning.winnerCount,
+            loserCount: learning.loserCount
+          }
+        });
+
+        let concept: Record<string, unknown> = {
+          ...generated,
+          videoProvider: selectedVideoProvider,
+          parentConceptId
+        };
+
+        if (Array.isArray(brandBrain?.banned_words_json) && brandBrain?.banned_words_json.length) {
+          const hook = String(concept["hook"] ?? "");
+          const cleanHook = brandBrain.banned_words_json.reduce((acc, word) => {
+            const re = new RegExp(`\\b${word}\\b`, "gi");
+            return acc.replace(re, "[redacted]");
+          }, hook);
+          concept = { ...concept, hook: cleanHook };
+        }
+
+        const titleCandidates = generateTitleCandidates(
+          String(concept["hook"] ?? ""),
+          String(concept["cta"] ?? "")
+        );
+        const thumbnailPromptCandidates = generateThumbnailPromptCandidates(
+          String(concept["hook"] ?? "")
+        );
+
+        concept = {
+          ...concept,
+          titleCandidates,
+          thumbnailPromptCandidates
+        };
+
+        const quality = scoreConcept(concept);
+        let estimatedCostUsd = estimateItemCostUsd(mode, concept);
+
+        if (estimatedCostUsd > presetConfig.maxPerOutputUsd && mode === "B") {
+          concept = {
+            ...concept,
+            durationSeconds: 4,
+            videoProvider: presetConfig.defaultProvider,
+            optimizerNote: "Adjusted by hard per-output budget cap."
+          };
+          estimatedCostUsd = estimateItemCostUsd(mode, concept);
+        }
+
+        estimatedBatchTotal += estimatedCostUsd;
+        if (estimatedBatchTotal > presetConfig.maxBatchUsd) {
+          return;
+        }
+
+        await createJobItem({
+          id: crypto.randomUUID(),
+          jobId,
+          mode,
+          status: selectedWorkflowMode === "approval" ? "awaiting_approval" : "queued",
+          conceptJson: concept,
+          approvalStatus: selectedWorkflowMode === "approval" ? "pending" : "not_required",
+          qualityScore: quality.total,
+          qualityJson: quality,
+          estimatedCostUsd
+        });
+      }
+    }
   }
 
-  for (let i = 0; i < bCount; i += 1) {
-    const concept = {
-      ...generateConcept(i, "B", referenceContext),
-      videoProvider: selectedVideoProvider
-    };
-    const quality = scoreConcept(concept);
-    await createJobItem({
-      id: crypto.randomUUID(),
-      jobId,
-      mode: "B",
-      status: selectedWorkflowMode === "approval" ? "awaiting_approval" : "queued",
-      conceptJson: concept,
-      approvalStatus: selectedWorkflowMode === "approval" ? "pending" : "not_required",
-      qualityScore: quality.total,
-      qualityJson: quality,
-      estimatedCostUsd: estimateItemCostUsd("B", concept)
-    });
-  }
+  await enqueueModeItems("A", aCount);
+  await enqueueModeItems("B", bCount);
 
   if (contentType.includes("application/json")) {
     return NextResponse.json({ ok: true, jobId });

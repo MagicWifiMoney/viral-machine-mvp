@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getJobWithDetails, initDb } from "@/lib/db";
+import { getJobWithDetails, initDb, listPublishQueueByJob, listRatingsByJob } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +11,10 @@ export async function GET(
   const { id } = await context.params;
 
   const data = await getJobWithDetails(id);
+  const [ratings, publishQueue] = await Promise.all([
+    listRatingsByJob(id),
+    listPublishQueueByJob(id)
+  ]);
 
   if (!data.job) {
     return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
@@ -42,12 +46,23 @@ export async function GET(
       typeof output.meta_json?.qualityScore === "number" ? output.meta_json.qualityScore : null
   }));
 
+  const outputRecords = data.outputs.map((output) => ({
+    id: output.id,
+    outputId: output.id,
+    type: output.type,
+    url: output.blob_url,
+    jobItemId: output.job_item_id
+  }));
+
   return NextResponse.json({
     ok: true,
     job: data.job,
     groups,
     outputs,
+    outputRecords,
     items: data.items,
+    ratings,
+    publishQueue,
     costSummary: { estimatedTotalUsd: Math.round(estimatedTotalUsd * 1000) / 1000 }
   });
 }

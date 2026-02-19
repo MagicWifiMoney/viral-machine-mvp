@@ -17,6 +17,14 @@
 - Deep YouTube analysis is offloaded to a DigitalOcean worker service.
 - TikTok reference URLs are now supported in quick/deep analysis flows.
 - Optional approval workflow and voice studio have been added.
+- Growth Lab features added:
+  - YouTube Shorts trend ingestion
+  - Brand brain (claims/CTA/tone/banned words)
+  - Variant generation (default 3 per idea)
+  - Thumbnail/title candidate generation
+  - Output ratings loop
+  - Cost preset caps
+  - Post Bridge schedule/status integration
 
 ## Credentials / Env Setup
 
@@ -30,6 +38,10 @@ Configured in Vercel production:
 - `WORKER_BASE_URL`
 - `WORKER_API_KEY`
 - `ELEVENLABS_API_KEY` (required for A voiceover mp3 outputs)
+- `TREND_INGEST_YOUTUBE_API_KEY` (optional; trend ingest falls back to synthetic titles without it)
+- `POST_BRIDGE_API_KEY`
+- `POST_BRIDGE_BASE_URL`
+- `POST_BRIDGE_WORKSPACE_ID`
 
 Configured on DigitalOcean worker container:
 

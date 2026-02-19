@@ -10,6 +10,7 @@ export function TopNav() {
     <div className="card" style={{ display: "flex", gap: 12, alignItems: "center" }}>
       <a href="/">Home</a>
       <a href="/assets">Assets</a>
+      <a href="/growth-lab">Growth Lab</a>
       <a href="/voices">Voices</a>
       <a href="/settings">Settings</a>
       <button type="button" className="secondary" onClick={logout}>
