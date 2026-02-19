@@ -14,3 +14,11 @@ export function getOptionalEnv(name: string): string | undefined {
 export function isRenderAEnabled(): boolean {
   return (process.env.RENDER_A_ENABLED ?? "false").toLowerCase() === "true";
 }
+
+export function getVideoProvider(): "openai" | "gemini" | "auto" {
+  const raw = (process.env.VIDEO_PROVIDER ?? "openai").toLowerCase();
+  if (raw === "gemini" || raw === "auto" || raw === "openai") {
+    return raw;
+  }
+  return "openai";
+}

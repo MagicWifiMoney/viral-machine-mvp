@@ -11,7 +11,7 @@ import {
   setJobItemStatus,
   tryAcquireLock
 } from "@/lib/db";
-import { createVideoTask, getVideoTask } from "@/lib/openaiVideo";
+import { createVideoTaskForItem, getVideoTaskForItem } from "@/lib/videoProvider";
 import { isRenderAEnabled } from "@/lib/env";
 import { synthesizeVoiceover } from "@/lib/elevenlabs";
 import { estimateVoiceoverCostUsd } from "@/lib/costs";
@@ -109,8 +109,7 @@ export async function runMainWorker(): Promise<{
         }
 
         if (!item.remote_task_id) {
-          const prompt = String(item.concept_json.hook ?? "Create a viral short-form business video");
-          const created = await createVideoTask({ prompt, seconds: 10 });
+          const created = await createVideoTaskForItem(item);
           const qualityScore =
             typeof item.quality_score === "number" ? item.quality_score : Number(item.quality_score ?? 0);
           const estimatedCostUsd = Number(item.estimated_cost_usd ?? 0);
@@ -145,7 +144,7 @@ export async function runMainWorker(): Promise<{
           continue;
         }
 
-        const polled = await getVideoTask(item.remote_task_id);
+        const polled = await getVideoTaskForItem(item.remote_task_id);
         if (polled.status === "completed" && polled.outputUrl) {
           const qualityScore =
             typeof item.quality_score === "number" ? item.quality_score : Number(item.quality_score ?? 0);

@@ -185,6 +185,7 @@ Required for production:
 - `POSTGRES_URL`
 - `BLOB_READ_WRITE_TOKEN`
 - `OPENAI_API_KEY`
+- `GEMINI_API_KEY` (required only when using Gemini/Veo provider)
 - `NEXT_PUBLIC_SITE_URL`
 - `ADMIN_PASSWORD`
 - `WORKER_BASE_URL` (DigitalOcean worker base URL)
@@ -193,6 +194,8 @@ Required for production:
 Optional:
 
 - `OPENAI_VIDEO_MODEL` (default `sora-2`)
+- `GEMINI_VIDEO_MODEL` (default `veo-3.1-fast-generate-preview`)
+- `VIDEO_PROVIDER` (`openai` | `gemini` | `auto`, default `openai`)
 - `RENDER_A_ENABLED` (default `false`)
 - `ELEVENLABS_API_KEY`
 - `ELEVENLABS_DEFAULT_MODEL` (default `eleven_multilingual_v2`)
