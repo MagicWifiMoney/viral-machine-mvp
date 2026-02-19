@@ -128,14 +128,23 @@ function extractVideoUri(data: Record<string, unknown>): string | null {
   }
 
   const generatedVideos = response.generatedVideos as Array<Record<string, unknown>> | undefined;
-  const first = generatedVideos?.[0];
-  if (!first) {
-    return null;
+  const firstGenerated = generatedVideos?.[0];
+  const firstGeneratedVideo = firstGenerated?.video as Record<string, unknown> | undefined;
+  if (typeof firstGeneratedVideo?.uri === "string") {
+    return firstGeneratedVideo.uri;
   }
 
-  const video = first.video as Record<string, unknown> | undefined;
-  const uri = typeof video?.uri === "string" ? video.uri : null;
-  return uri;
+  const generateVideoResponse = response.generateVideoResponse as
+    | Record<string, unknown>
+    | undefined;
+  const samples = generateVideoResponse?.generatedSamples as Array<Record<string, unknown>> | undefined;
+  const firstSample = samples?.[0];
+  const firstSampleVideo = firstSample?.video as Record<string, unknown> | undefined;
+  if (typeof firstSampleVideo?.uri === "string") {
+    return firstSampleVideo.uri;
+  }
+
+  return null;
 }
 
 async function downloadAndStoreVideo(uri: string, taskId: string): Promise<string> {
